@@ -7,6 +7,8 @@ import json
 import os
 import sys
 from typing import Dict, Any
+import hashlib
+import time
 import google.generativeai as genai
 
 class ResumeParser:
@@ -17,8 +19,11 @@ class ResumeParser:
         Args:
             gemini_api_key: Your Google Gemini API key
         """
+        if not gemini_api_key:
+            raise ValueError("GEMINI_API_KEY not found in environment.")
+        
         genai.configure(api_key=gemini_api_key)
-        self.model = genai.GenerativeModel('gemini-3-flash-preview')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
     
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """
@@ -125,36 +130,86 @@ Important:
         except Exception as e:
             raise Exception(f"Error calling Gemini API: {str(e)}")
     
+    # def parse_resume(self, pdf_path: str, output_path: str = None) -> Dict[str, Any]:
+    #     """
+    #     Complete pipeline: Extract text from PDF and parse with Gemini
+        
+    #     Args:
+    #         pdf_path: Path to the PDF resume file
+    #         output_path: Optional path to save the JSON output
+            
+    #     Returns:
+    #         Dictionary with structured resume data
+    #     """
+    #     print(f"📄 Extracting text from: {pdf_path}")
+    #     resume_text = self.extract_text_from_pdf(pdf_path)
+        
+    #     if not resume_text:
+    #         raise Exception("No text could be extracted from the PDF")
+        
+    #     print(f"✓ Extracted {len(resume_text)} characters")
+    #     print(f"\n🤖 Parsing resume with Gemini API...")
+        
+    #     parsed_data = self.parse_resume_with_gemini(resume_text)
+        
+    #     print(f"✓ Successfully parsed resume for: {parsed_data.get('name', 'Unknown')}")
+        
+    #     # Save to file if output path is provided
+    #     if output_path:
+    #         with open(output_path, 'w', encoding='utf-8') as f:
+    #             json.dump(parsed_data, f, indent=2, ensure_ascii=False)
+    #         print(f"✓ Saved parsed data to: {output_path}")
+        
+    #     return parsed_data
+
     def parse_resume(self, pdf_path: str, output_path: str = None) -> Dict[str, Any]:
         """
-        Complete pipeline: Extract text from PDF and parse with Gemini
-        
-        Args:
-            pdf_path: Path to the PDF resume file
-            output_path: Optional path to save the JSON output
-            
-        Returns:
-            Dictionary with structured resume data
+        Cached resume parsing.
+        If cached JSON exists and PDF not modified, load from cache.
+        Otherwise call Gemini and overwrite cache.
         """
+
+        cache_dir = "parsed_cache"
+        os.makedirs(cache_dir, exist_ok=True)
+
+        filename = os.path.basename(pdf_path)
+        cache_file = os.path.join(cache_dir, filename.replace(".pdf", ".json"))
+
+        pdf_modified_time = os.path.getmtime(pdf_path)
+
+        # --- Check Cache ---
+        if os.path.exists(cache_file):
+            with open(cache_file, "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+
+            cached_time = cached_data.get("_pdf_modified_time")
+
+            if cached_time == pdf_modified_time:
+                print(f"⚡ Loaded cached resume for: {filename}")
+                return cached_data["data"]
+
+        # --- If No Cache or Modified ---
         print(f"📄 Extracting text from: {pdf_path}")
         resume_text = self.extract_text_from_pdf(pdf_path)
-        
-        if not resume_text:
-            raise Exception("No text could be extracted from the PDF")
-        
+
         print(f"✓ Extracted {len(resume_text)} characters")
         print(f"\n🤖 Parsing resume with Gemini API...")
-        
+
         parsed_data = self.parse_resume_with_gemini(resume_text)
-        
+
         print(f"✓ Successfully parsed resume for: {parsed_data.get('name', 'Unknown')}")
-        
-        # Save to file if output path is provided
-        if output_path:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(parsed_data, f, indent=2, ensure_ascii=False)
-            print(f"✓ Saved parsed data to: {output_path}")
-        
+
+        # Save cache with metadata
+        cache_payload = {
+            "_pdf_modified_time": pdf_modified_time,
+            "data": parsed_data
+        }
+
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(cache_payload, f, indent=2, ensure_ascii=False)
+
+        print(f"💾 Cached parsed resume to: {cache_file}")
+
         return parsed_data
 
 
