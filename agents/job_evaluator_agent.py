@@ -52,10 +52,14 @@ def job_evaluator_agent(state: JobApplicationState) -> JobApplicationState:
                 
                 # Ensure the index is within bounds to prevent IndexError
                 idx = result.get("selected_resume_index", 0)
-                if 0 <= idx < len(resumes):
+                if resumes and 0 <= idx < len(resumes):
                     state["selected_resume"] = resumes[idx]
+                elif resumes:
+                    state["selected_resume"] = resumes[0]
                 else:
-                    state["selected_resume"] = resumes[0] 
+                    print("[!] No resumes available to select!")
+                    state["decision"] = "skip"
+                    return state
                 
                 state["match_score"] = result.get("score")
                 state["decision"] = "apply"

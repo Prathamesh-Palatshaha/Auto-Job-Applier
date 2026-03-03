@@ -19,11 +19,16 @@ def review_agent(state: JobApplicationState) -> JobApplicationState:
     print("Apply Link:", job.get("apply_link"))
     print("==============================")
 
-    decision = input("Approve application? (yes/no): ")
-
-    if decision.lower() == "yes":
-        state["human_approval"] = "approved"
-    else:
-        state["human_approval"] = "rejected"
+    while True:
+        decision = input("Approve application? (yes/no): ").strip().lower()
+        
+        if decision in ["yes", "y"]:
+            state["human_approval"] = "approved"
+            break
+        elif decision in ["no", "n"]:
+            state["human_approval"] = "rejected"
+            break
+        else:
+            print("⚠️  Invalid input. Please enter 'yes' or 'no'.")
 
     return state
